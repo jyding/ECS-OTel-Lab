@@ -1,0 +1,67 @@
+# docker-compose.yaml for local testing
+
+services:
+  # Service for the OTel Collector
+  otel-collector:
+    build:
+      context: ./collector
+      dockerfile: Dockerfile # Assumes this Dockerfile copies config correctly
+    image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/otel-with-config:local-test
+    container_name: otel-collector-local
+    ports:
+      - "4318:4318"
+    # REMOVED the command override - let the image's default CMD run
+    # command: ["otelcol-sumo", "--config=/etc/otelcol-sumo/config.yaml"]
+    networks:
+      - pokemon-net
+
+  # Service for App 1 (Pinger)
+  pinger:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/test-container1:local-test
+    container_name: pinger-local
+    environment:
+      - INTERVAL_SEC=15
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector-local:4318
+      - OTEL_SERVICE_NAME=pokemon-pinger-local
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-dev
+      # Explicitly tell SDK to use OTLP over HTTP for all signals
+      - OTEL_TRACES_EXPORTER=otlp_proto_http
+      - OTEL_METRICS_EXPORTER=otlp_proto_http
+      - OTEL_LOGS_EXPORTER=otlp_proto_http # Keep this fix
+      # - PYTHONUNBUFFERED=1
+    depends_on:
+      - otel-collector
+    networks:
+      - pokemon-net
+
+  # Service for App 2 (Catcher - Flask)
+  catcher:
+    build:
+      context: ./app2
+      dockerfile: Dockerfile
+    image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/test-container2:local-test
+    container_name: catcher-local
+    environment:
+      - INTERVAL_SEC=10
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector-local:4318
+      - OTEL_SERVICE_NAME=pokemon-catcher-local
+      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-dev
+      # Explicitly tell SDK to use OTLP over HTTP for all signals
+      - OTEL_TRACES_EXPORTER=otlp_proto_http
+      - OTEL_METRICS_EXPORTER=otlp_proto_http
+      - OTEL_LOGS_EXPORTER=otlp_proto_http # Keep this fix
+      # - PYTHONUNBUFFERED=1
+      # - FLASK_ENV=development
+    ports:
+      - "8080:8080"
+    depends_on:
+      - otel-collector
+    networks:
+      - pokemon-net
+
+networks:
+  pokemon-net:
+    driver: bridge

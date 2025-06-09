@@ -1,0 +1,45 @@
+# collector/otel-collector-config.yaml
+# Using standard otlphttp exporter with full endpoint URLs from Sumo Logic
+
+receivers:
+  otlp:
+    protocols:
+      http:
+        # Listen for OTLP/HTTP from your app containers
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    # Optional: Adjust settings based on load
+    # timeout: 1s
+    # send_batch_size: 1024
+
+exporters:
+  # Define the standard OTLP/HTTP exporter
+  otlphttp:
+    # Use the full, unique endpoint URLs provided by Sumo Logic
+    metrics_endpoint: "YOUR_SUMOLOGIC_METRICS_ENDPOINT"
+    traces_endpoint:  "YOUR_SUMOLOGIC_TRACES_ENDPOINT"
+
+    # Optional settings (adjust as needed)
+    timeout: 30s
+    sending_queue:
+      enabled: true
+    retry_on_failure:
+      enabled: true
+    # NOTE: No 'auth:' section is needed; authentication is embedded in the URL path token.
+
+# NOTE: No 'extensions:' section is needed for this configuration method.
+
+service:
+  # NOTE: No 'extensions:' list is needed here.
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [batch]
+      exporters:  [otlphttp] # Use the otlphttp exporter
+
+    metrics:
+      receivers:  [otlp]
+      processors: [batch]
+      exporters:  [otlphttp] # Use the otlphttp exporter

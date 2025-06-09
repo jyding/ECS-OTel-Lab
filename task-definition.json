@@ -1,0 +1,221 @@
+{
+    "containerDefinitions": [
+        {
+            "name": "test-container1",
+            "image": "YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/test-container1:latest",
+            "cpu": 0,
+            "memoryReservation": 256,
+            "portMappings": [],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "OTEL_SERVICE_NAME",
+                    "value": "pokemon-pinger"
+                },
+                {
+                    "name": "OTEL_RESOURCE_ATTRIBUTES",
+                    "value": "deployment.environment=production"
+                },
+                {
+                    "name": "INTERVAL_SEC",
+                    "value": "30"
+                },
+                {
+                    "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                    "value": "http://localhost:4318"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "dependsOn": [
+                {
+                    "containerName": "log-router",
+                    "condition": "START"
+                },
+                {
+                    "containerName": "otel-collector",
+                    "condition": "START"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awsfirelens",
+                "options": {
+                  "tag": "app.pokemon.pinger"
+                }
+            },
+            "systemControls": []
+        },
+        {
+            "name": "test-container2",
+            "image": "YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/test-container2:latest",
+            "cpu": 0,
+            "memoryReservation": 256,
+            "portMappings": [
+                {
+                    "containerPort": 8080,
+                    "hostPort": 8080,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [
+                {
+                    "name": "OTEL_SERVICE_NAME",
+                    "value": "pokemon-catcher"
+                },
+                {
+                    "name": "OTEL_RESOURCE_ATTRIBUTES",
+                    "value": "deployment.environment=production"
+                },
+                {
+                    "name": "INTERVAL_SEC",
+                    "value": "10"
+                },
+                {
+                    "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+                    "value": "http://localhost:4318"
+                }
+            ],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "dependsOn": [
+                {
+                    "containerName": "log-router",
+                    "condition": "START"
+                },
+                {
+                    "containerName": "otel-collector",
+                    "condition": "START"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awsfirelens",
+                "options": {
+                  "tag": "app.pokemon.catcher"
+                }
+            },
+            "systemControls": []
+        },
+        {
+            "name": "otel-collector",
+            "image": "YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/otel-with-config:latest",
+            "cpu": 0,
+            "memoryReservation": 256,
+            "portMappings": [
+                {
+                    "containerPort": 4318,
+                    "hostPort": 4318,
+                    "protocol": "tcp"
+                }
+            ],
+            "essential": true,
+            "environment": [],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "dependsOn": [
+                {
+                    "containerName": "log-router",
+                    "condition": "START"
+                }
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "YOUR_LOG_GROUP_NAME",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "YOUR_REGION",
+                    "awslogs-stream-prefix": "YOUR_LOG_STREAM_PREFIX"
+                }
+            },
+            "systemControls": []
+        },
+        {
+            "name": "log-router",
+            "image": "public.ecr.aws/aws-observability/aws-for-fluent-bit:latest",
+            "cpu": 0,
+            "memoryReservation": 128,
+            "portMappings": [],
+            "essential": true,
+            "environment": [],
+            "mountPoints": [],
+            "volumesFrom": [],
+            "user": "0",
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": "YOUR_LOG_GROUP_NAME",
+                    "awslogs-create-group": "true",
+                    "awslogs-region": "YOUR_REGION",
+                    "awslogs-stream-prefix": "fluentbit"
+                }
+            },
+            "systemControls": [],
+            "firelensConfiguration": {
+                "type": "fluentbit",
+                "options": {
+                    "enable-ecs-log-metadata": "true",
+                    "config-file-type": "s3",
+                    "config-file-value": "YOUR_FLUENTBIT_CONFIG_S3_ARN"
+                }
+            }
+        }
+    ],
+    "family": "pokemon-pipeline-accesskey-lab",
+    "taskRoleArn": "YOUR_ECS_TASK_ROLE_ARN",
+    "executionRoleArn": "YOUR_ECS_EXECUTION_ROLE_ARN",
+    "networkMode": "awsvpc",
+    "requiresAttributes": [
+        {
+            "name": "ecs.capability.execution-role-awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.ecr-auth"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.17"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.21"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awsfirelens"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.task-iam-role"
+        },
+        {
+            "name": "ecs.capability.execution-role-ecr-pull"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+        },
+        {
+            "name": "ecs.capability.task-eni"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.29"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+        },
+        {
+            "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+        },
+        {
+            "name": "ecs.capability.firelens.fluentbit"
+        },
+        {
+            "name": "ecs.capability.container-ordering"
+        }
+    ],
+    "placementConstraints": [],
+    "compatibilities": [
+        "EC2",
+        "FARGATE"
+    ],
+    "requiresCompatibilities": [
+        "FARGATE"
+    ],
+    "cpu": "1024",
+    "memory": "2048"
+}
