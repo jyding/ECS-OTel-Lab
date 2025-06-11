@@ -39,8 +39,17 @@
             ],
             "logConfiguration": {
                 "logDriver": "awsfirelens",
-                "options": {
-                  "tag": "app.pokemon.pinger"
+                 "options": {
+                    "Json_date_format": "epoch",
+                    "Format": "json_lines",
+                    "Header": "X-Sumo-Category {YOUR_SUMO_SOURCE_CATEGORY}",
+                    "Port": "443",
+                    "Host": {SUMO_DEPLOYMENT},
+                    "tls": "on",
+                    "URI": {SUMO_ENDPOINT},
+                    "Json_date_key": "date",
+                    "Match": "*",
+                    "Name": "http"
                 }
             },
             "systemControls": []
@@ -90,8 +99,17 @@
             ],
             "logConfiguration": {
                 "logDriver": "awsfirelens",
-                "options": {
-                  "tag": "app.pokemon.catcher"
+                 "options": {
+                    "Json_date_format": "epoch",
+                    "Format": "json_lines",
+                    "Header": "X-Sumo-Category {YOUR_SUMO_SOURCE_CATEGORY}",
+                    "Port": "443",
+                    "Host": {SUMO_DEPLOYMENT},
+                    "tls": "on",
+                    "URI": {SUMO_ENDPOINT},
+                    "Json_date_key": "date",
+                    "Match": "*",
+                    "Name": "http"
                 }
             },
             "systemControls": []
