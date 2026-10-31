@@ -77,6 +77,13 @@ jobs:
           Path('build/fluent-bit-check.conf').write_text(config)
           PY
           router_image=$(python -c 'import json; print(json.load(open("ecs/platform.example.json"))["router_image"])')
+          # Public ECR may rate-limit shared GitHub runner IPs. AWS publishes
+          # the same version tags to Docker Hub as well.
+          if ! docker pull "$router_image"; then
+            mirror="amazon/aws-for-fluent-bit:${router_image##*:}"
+            docker pull "$mirror"
+            docker tag "$mirror" "$router_image"
+          fi
           docker run --rm --entrypoint /fluent-bit/bin/fluent-bit \
             -v "$PWD/build/fluent-bit-check.conf:/tmp/check.conf:ro" \
             "$router_image" --dry-run -c /tmp/check.conf
