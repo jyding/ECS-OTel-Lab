@@ -49,6 +49,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: docker compose --profile otel config --quiet
       - run: docker compose --profile otel build
       - name: Validate OTel configuration without sending telemetry
@@ -57,3 +60,23 @@ jobs:
             -e SUMO_METRICS_ENDPOINT=https://example.invalid/v1/metrics \
             -e SUMO_TRACES_ENDPOINT=https://example.invalid/v1/traces \
             otel-with-config:lab validate --config=/etc/otelcol-sumo/config.yaml
+      - name: Validate shared Fluent Bit HTTP output without ingestion
+        run: |
+          python ecs/render_task.py --app ecs/examples/pokemon-catcher.json \
+            --environment sandbox --platform ecs/platform.example.json \
+            --destinations ecs/destinations.example.json --output build/fluent-bit-task.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          task = json.loads(Path('build/fluent-bit-task.json').read_text())
+          options = task['containerDefinitions'][0]['logConfiguration']['options']
+          # Simulate only the ECS-generated output for a dry run. The application
+          # never supplies Match, and no real secret is fetched by this check.
+          options = {**options, 'Match': 'app-firelens*', 'URI': '/receiver/v1/http/EXAMPLE'}
+          config = '[OUTPUT]\n' + ''.join(f'    {k} {v}\n' for k, v in options.items())
+          Path('build/fluent-bit-check.conf').write_text(config)
+          PY
+          router_image=$(python -c 'import json; print(json.load(open("ecs/platform.example.json"))["router_image"])')
+          docker run --rm --entrypoint /fluent-bit/bin/fluent-bit \
+            -v "$PWD/build/fluent-bit-check.conf:/tmp/check.conf:ro" \
+            "$router_image" --dry-run -c /tmp/check.conf

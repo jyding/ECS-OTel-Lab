@@ -245,7 +245,8 @@ SUMOLOGIC_ACCESSID=validation-placeholder SUMOLOGIC_ACCESSKEY=validation-placeho
 The placeholders only satisfy provider schema validation. The Terraform test uses mock
 providers to check Source-to-secret mapping without contacting AWS or Sumo. CI additionally checks all four combinations
 with and without OTel using the AWS CLI's **offline** input validation, builds all three
-images, and validates the Collector configuration. Check the workflow result for the
+images, validates the Collector configuration, and dry-runs the shared HTTP output
+using the AWS Fluent Bit image. Check the workflow result for the
 revision you use. There is no live ECS or Sumo ingestion test in CI.
 
 The lab does not implement production buffering/durability guarantees, tuning, alarms,
