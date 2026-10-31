@@ -4,6 +4,11 @@ Different applications provide different metadata, but use the same logging impl
 This small ECS/Fargate lab keeps the original Pokemon worker, Flask API, and optional
 OpenTelemetry example. It demonstrates a reusable logging pattern, not a production framework.
 
+**Reference repository:** CI builds and validates these examples only. It does not deploy
+applications or create AWS/Sumo resources. You can inspect and render all four examples
+without a cloud account. The infrastructure and ECS commands below are optional instructions
+for readers who choose to run the lab themselves.
+
 ## Problem and solution
 
 When applications, environments, and teams independently copy task definitions and invent
@@ -81,7 +86,7 @@ The renderer rejects missing metadata, unknown environments, arbitrary logging o
 invalid category segments, reserved identity variables, unsafe ports, and incompatible
 task resources. This lab supports the small Fargate task sizes from 0.25 through 4 vCPU.
 
-## Create shared ingestion infrastructure
+## Optional: create shared ingestion infrastructure
 
 [`terraform/sumologic/main.tf`](terraform/sumologic/main.tf) is reference infrastructure.
 For each environment it creates a Hosted Collector, one HTTP Logs Source configured for
@@ -123,7 +128,7 @@ and [HTTP Source](https://registry.terraform.io/providers/SumoLogic/sumologic/la
 This example uses URL-token HTTP Sources; auth-header Sources would need a corresponding
 shared output change. After token rotation, update the secret and launch fresh tasks.
 
-## Prepare and register an ECS task
+## Optional: prepare and register an ECS task
 
 1. Build from the repository root and push both images to your registry:
 
