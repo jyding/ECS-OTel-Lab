@@ -2,8 +2,8 @@ import requests
 import random
 import time
 import os
-import json
-import logging # Use standard logging
+import logging
+from common.json_logging import configure_logging
 
 # --- OpenTelemetry Imports ---
 from opentelemetry import trace, metrics
@@ -15,7 +15,7 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter # Corrected: Singular Metric
 # For setting service name and other attributes
-from opentelemetry.sdk.resources import Resource, SERVICE_NAME, DEPLOYMENT_ENVIRONMENT
+from opentelemetry.sdk.resources import Resource, SERVICE_NAME
 # For auto-instrumenting HTTP requests
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 # For setting span status
@@ -23,7 +23,7 @@ from opentelemetry.trace import SpanKind, Status, StatusCode
 # --- End OpenTelemetry Imports ---
 
 # Configure standard logging
-logging.basicConfig(level=logging.INFO)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 # --- OpenTelemetry Setup ---
@@ -35,7 +35,7 @@ otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"
 # Define resource attributes for this service
 resource_attributes = {
     SERVICE_NAME: service_name,
-    DEPLOYMENT_ENVIRONMENT: deployment_environment,
+    "deployment.environment.name": deployment_environment,
 }
 resource_env_vars = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
 if resource_env_vars:
@@ -50,25 +50,27 @@ if resource_env_vars:
 resource = Resource(attributes=resource_attributes)
 
 # --- Tracing Setup ---
-tracer_provider = TracerProvider(resource=resource)
-# Configure the OTLP/HTTP exporter using the endpoint from env var
-# The OTEL_TRACES_EXPORTER=otlp_proto_http env var ensures this is used
-span_exporter = OTLPSpanExporter(endpoint=f"{otlp_endpoint}/v1/traces")
-processor = BatchSpanProcessor(span_exporter)
-tracer_provider.add_span_processor(processor)
-trace.set_tracer_provider(tracer_provider)
-tracer = trace.get_tracer(__name__)
-RequestsInstrumentor().instrument()
-logger.info(f"OTel Tracing initialized for service: {service_name}, exporting to {otlp_endpoint}/v1/traces")
-# --- End Tracing Setup ---
+otel_enabled = os.getenv("OTEL_SDK_DISABLED", "true").lower() != "true"
+if otel_enabled:
+    tracer_provider = TracerProvider(resource=resource)
+    # Configure the OTLP/HTTP exporter using the endpoint from env var
+    span_exporter = OTLPSpanExporter(endpoint=f"{otlp_endpoint}/v1/traces")
+    processor = BatchSpanProcessor(span_exporter)
+    tracer_provider.add_span_processor(processor)
+    trace.set_tracer_provider(tracer_provider)
+    RequestsInstrumentor().instrument()
+    logger.info(f"OTel Tracing initialized for service: {service_name}, exporting to {otlp_endpoint}/v1/traces")
+    # --- End Tracing Setup ---
 
-# --- Metrics Setup ---
-# Configure the OTLP/HTTP exporter using the endpoint from env var
-# The OTEL_METRICS_EXPORTER=otlp_proto_http env var ensures this is used
-metric_exporter = OTLPMetricExporter(endpoint=f"{otlp_endpoint}/v1/metrics") # Corrected: Singular Metric
-reader = PeriodicExportingMetricReader(metric_exporter)
-meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
-metrics.set_meter_provider(meter_provider)
+    # --- Metrics Setup ---
+    # Configure the OTLP/HTTP exporter using the endpoint from env var
+    metric_exporter = OTLPMetricExporter(endpoint=f"{otlp_endpoint}/v1/metrics") # Corrected: Singular Metric
+    reader = PeriodicExportingMetricReader(metric_exporter)
+    meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+    metrics.set_meter_provider(meter_provider)
+
+
+tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
 
 # Define custom metrics
@@ -87,7 +89,8 @@ pokemon_fetch_error_counter = meter.create_counter(
     description="Counts failed pokemon fetches (HTTP errors or exceptions)",
     unit="1"
 )
-logger.info(f"OTel Metrics initialized for service: {service_name}, exporting to {otlp_endpoint}/v1/metrics")
+if otel_enabled:
+    logger.info(f"OTel Metrics initialized for service: {service_name}")
 # --- End Metrics Setup ---
 
 # --- Original Application Logic ---
@@ -104,9 +107,7 @@ while True:
             loop_span.set_attribute("pokemon.id.attempted", pokemon_id)
             pokemon_fetch_counter.add(1, {"pokemon.id": str(pokemon_id)})
 
-            logger.info(json.dumps({
-                "message": f"fetching number {pokemon_id}"
-            })) 
+            logger.info("Fetching Pokemon", extra={"fields": {"pokemon_id": pokemon_id}})
 
             url = f"https://pokeapi.co/api/v2/pokemon/{pokemon_id}"
             response = session.get(url, timeout=5)
@@ -120,22 +121,22 @@ while True:
                 loop_span.set_status(Status(StatusCode.OK))
                 pokemon_fetch_success_counter.add(1, {"pokemon.id": str(pokemon_id), "pokemon.name": pokemon_name})
 
-                logger.info(json.dumps({
+                logger.info("Pokemon fetched", extra={"fields": {
                     "pokemon_id": pokemon_id,
                     "pokemon_name": pokemon_name,
                     "status": 200
-                })) 
+                }})
             else:
                 error_message = f"HTTP {status}"
                 loop_span.set_attribute("error.message", error_message)
                 loop_span.set_status(Status(StatusCode.ERROR, f"PokeAPI request failed with status {status}"))
                 pokemon_fetch_error_counter.add(1, {"pokemon.id": str(pokemon_id), "http.status_code": str(status)})
 
-                logger.warning(json.dumps({
+                logger.warning("Pokemon fetch failed", extra={"fields": {
                     "pokemon_id": pokemon_id,
                     "error": error_message,
                     "status": status
-                })) 
+                }})
 
         except Exception as e:
             logger.error(f"Exception during fetch for ID {pokemon_id}: {e}", exc_info=True)
@@ -143,10 +144,6 @@ while True:
             loop_span.set_status(Status(StatusCode.ERROR, f"Exception: {str(e)}"))
             pokemon_fetch_error_counter.add(1, {"pokemon.id": str(pokemon_id), "exception.type": type(e).__name__})
 
-            print(json.dumps({
-                "pokemon_id": pokemon_id,
-                "error": str(e)
-            }), flush=True) 
 
         finally:
             time.sleep(INTERVAL_SEC)

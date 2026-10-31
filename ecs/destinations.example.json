@@ -1,0 +1,10 @@
+{
+  "sandbox": {
+    "host": "sandbox.example.invalid",
+    "uri_secret_arn": "arn:aws:secretsmanager:us-east-1:111122223333:secret:ecs/sandbox/sumo-uri-EXAMPL"
+  },
+  "prod": {
+    "host": "prod.example.invalid",
+    "uri_secret_arn": "arn:aws:secretsmanager:us-east-1:111122223333:secret:ecs/prod/sumo-uri-EXAMPL"
+  }
+}

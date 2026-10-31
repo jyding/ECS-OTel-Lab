@@ -1,0 +1,10 @@
+{
+  "application": "pokemon-pinger",
+  "component": "worker",
+  "image": "pokemon-pinger:lab",
+  "version": "1.0.0",
+  "cpu": 128,
+  "memory": 256,
+  "ports": [],
+  "environment_variables": {"INTERVAL_SEC": "30"}
+}

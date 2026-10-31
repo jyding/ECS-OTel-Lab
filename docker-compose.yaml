@@ -1,67 +1,44 @@
-# docker-compose.yaml for local testing
-
+# Local application smoke test. Compose does not implement ECS awsfirelens.
 services:
-  # Service for the OTel Collector
-  otel-collector:
-    build:
-      context: ./collector
-      dockerfile: Dockerfile # Assumes this Dockerfile copies config correctly
-    image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/otel-with-config:local-test
-    container_name: otel-collector-local
-    ports:
-      - "4318:4318"
-    # REMOVED the command override - let the image's default CMD run
-    # command: ["otelcol-sumo", "--config=/etc/otelcol-sumo/config.yaml"]
-    networks:
-      - pokemon-net
-
-  # Service for App 1 (Pinger)
   pinger:
     build:
-      context: ./app
-      dockerfile: Dockerfile
-    image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/test-container1:local-test
-    container_name: pinger-local
+      context: .
+      dockerfile: app/Dockerfile
+    image: pokemon-pinger:lab
     environment:
-      - INTERVAL_SEC=15
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector-local:4318
-      - OTEL_SERVICE_NAME=pokemon-pinger-local
-      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-dev
-      # Explicitly tell SDK to use OTLP over HTTP for all signals
-      - OTEL_TRACES_EXPORTER=otlp_proto_http
-      - OTEL_METRICS_EXPORTER=otlp_proto_http
-      - OTEL_LOGS_EXPORTER=otlp_proto_http # Keep this fix
-      # - PYTHONUNBUFFERED=1
-    depends_on:
-      - otel-collector
-    networks:
-      - pokemon-net
+      INTERVAL_SEC: "15"
+      SERVICE_NAME: pokemon-pinger
+      COMPONENT: worker
+      DEPLOYMENT_ENVIRONMENT: sandbox
+      APP_VERSION: "1.0.0"
+      OTEL_SERVICE_NAME: pokemon-pinger
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_LOGS_EXPORTER: none
 
-  # Service for App 2 (Catcher - Flask)
   catcher:
     build:
-      context: ./app2
-      dockerfile: Dockerfile
-    image: YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_REGION.amazonaws.com/test-container2:local-test
-    container_name: catcher-local
+      context: .
+      dockerfile: app2/Dockerfile
+    image: pokemon-catcher:lab
     environment:
-      - INTERVAL_SEC=10
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector-local:4318
-      - OTEL_SERVICE_NAME=pokemon-catcher-local
-      - OTEL_RESOURCE_ATTRIBUTES=deployment.environment=local-dev
-      # Explicitly tell SDK to use OTLP over HTTP for all signals
-      - OTEL_TRACES_EXPORTER=otlp_proto_http
-      - OTEL_METRICS_EXPORTER=otlp_proto_http
-      - OTEL_LOGS_EXPORTER=otlp_proto_http # Keep this fix
-      # - PYTHONUNBUFFERED=1
-      # - FLASK_ENV=development
+      INTERVAL_SEC: "10"
+      SERVICE_NAME: pokemon-catcher
+      COMPONENT: api
+      DEPLOYMENT_ENVIRONMENT: sandbox
+      APP_VERSION: "1.0.0"
+      OTEL_SERVICE_NAME: pokemon-catcher
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-true}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_LOGS_EXPORTER: none
     ports:
-      - "8080:8080"
-    depends_on:
-      - otel-collector
-    networks:
-      - pokemon-net
+      - "127.0.0.1:8080:8080"
 
-networks:
-  pokemon-net:
-    driver: bridge
+  otel-collector:
+    profiles: [otel]
+    build:
+      context: ./collector
+    image: otel-with-config:lab
+    environment:
+      SUMO_METRICS_ENDPOINT: ${SUMO_METRICS_ENDPOINT:-https://example.invalid/v1/metrics}
+      SUMO_TRACES_ENDPOINT: ${SUMO_TRACES_ENDPOINT:-https://example.invalid/v1/traces}

@@ -1,0 +1,10 @@
+{
+  "application": "pokemon-catcher",
+  "component": "api",
+  "image": "pokemon-catcher:lab",
+  "version": "1.0.0",
+  "cpu": 256,
+  "memory": 512,
+  "ports": [8080],
+  "environment_variables": {"INTERVAL_SEC": "10"}
+}
