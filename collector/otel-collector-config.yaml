@@ -18,8 +18,8 @@ exporters:
   # Define the standard OTLP/HTTP exporter
   otlphttp:
     # Use the full, unique endpoint URLs provided by Sumo Logic
-    metrics_endpoint: "YOUR_SUMOLOGIC_METRICS_ENDPOINT"
-    traces_endpoint:  "YOUR_SUMOLOGIC_TRACES_ENDPOINT"
+    metrics_endpoint: "${env:SUMO_METRICS_ENDPOINT}"
+    traces_endpoint:  "${env:SUMO_TRACES_ENDPOINT}"
 
     # Optional settings (adjust as needed)
     timeout: 30s

@@ -1,0 +1,26 @@
+{
+  "region": "us-east-1",
+  "router_image": "public.ecr.aws/aws-observability/aws-for-fluent-bit:3",
+  "task_cpu": "1024",
+  "task_memory": "2048",
+  "environments": {
+    "sandbox": {
+      "execution_role_arn": "arn:aws:iam::111122223333:role/ecs-sandbox-execution",
+      "log_group": "/ecs/sandbox/lab-infrastructure",
+      "otel": {
+        "image": "otel-with-config:lab",
+        "metrics_secret_arn": "arn:aws:secretsmanager:us-east-1:111122223333:secret:ecs/sandbox/otel-metrics-EXAMPL",
+        "traces_secret_arn": "arn:aws:secretsmanager:us-east-1:111122223333:secret:ecs/sandbox/otel-traces-EXAMPL"
+      }
+    },
+    "prod": {
+      "execution_role_arn": "arn:aws:iam::111122223333:role/ecs-prod-execution",
+      "log_group": "/ecs/prod/lab-infrastructure",
+      "otel": {
+        "image": "otel-with-config:lab",
+        "metrics_secret_arn": "arn:aws:secretsmanager:us-east-1:111122223333:secret:ecs/prod/otel-metrics-EXAMPL",
+        "traces_secret_arn": "arn:aws:secretsmanager:us-east-1:111122223333:secret:ecs/prod/otel-traces-EXAMPL"
+      }
+    }
+  }
+}

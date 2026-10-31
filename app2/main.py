@@ -1,9 +1,9 @@
 import random
-import json
 import time
 import os
 from threading import Thread
-import logging # Use standard logging
+import logging
+from common.json_logging import configure_logging
 
 from flask import Flask, jsonify
 
@@ -17,13 +17,13 @@ from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter # Corrected: Singular Metric
 # For setting service name and other attributes
-from opentelemetry.sdk.resources import Resource, SERVICE_NAME, DEPLOYMENT_ENVIRONMENT
+from opentelemetry.sdk.resources import Resource, SERVICE_NAME
 # For auto-instrumenting Flask applications
 from opentelemetry.instrumentation.flask import FlaskInstrumentor
 # --- End OpenTelemetry Imports ---
 
 # Configure standard logging
-logging.basicConfig(level=logging.INFO)
+configure_logging()
 logger = logging.getLogger(__name__)
 
 # --- OpenTelemetry Setup ---
@@ -35,7 +35,7 @@ otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"
 # Define resource attributes for this service
 resource_attributes = {
     SERVICE_NAME: service_name,
-    DEPLOYMENT_ENVIRONMENT: deployment_environment,
+    "deployment.environment.name": deployment_environment,
 }
 resource_env_vars = os.getenv("OTEL_RESOURCE_ATTRIBUTES", "")
 if resource_env_vars:
@@ -50,21 +50,24 @@ if resource_env_vars:
 resource = Resource(attributes=resource_attributes)
 
 # --- Tracing Setup ---
-tracer_provider = TracerProvider(resource=resource)
-# The OTEL_TRACES_EXPORTER=otlp_proto_http env var ensures this is used
-span_exporter = OTLPSpanExporter(endpoint=f"{otlp_endpoint}/v1/traces")
-processor = BatchSpanProcessor(span_exporter)
-tracer_provider.add_span_processor(processor)
-trace.set_tracer_provider(tracer_provider)
-logger.info(f"OTel Tracing initialized for service: {service_name}, exporting to {otlp_endpoint}/v1/traces")
-# --- End Tracing Setup ---
+otel_enabled = os.getenv("OTEL_SDK_DISABLED", "true").lower() != "true"
+if otel_enabled:
+    tracer_provider = TracerProvider(resource=resource)
+    span_exporter = OTLPSpanExporter(endpoint=f"{otlp_endpoint}/v1/traces")
+    processor = BatchSpanProcessor(span_exporter)
+    tracer_provider.add_span_processor(processor)
+    trace.set_tracer_provider(tracer_provider)
+    logger.info(f"OTel Tracing initialized for service: {service_name}, exporting to {otlp_endpoint}/v1/traces")
+    # --- End Tracing Setup ---
 
-# --- Metrics Setup ---
-# The OTEL_METRICS_EXPORTER=otlp_proto_http env var ensures this is used
-metric_exporter = OTLPMetricExporter(endpoint=f"{otlp_endpoint}/v1/metrics") # Corrected: Singular Metric
-reader = PeriodicExportingMetricReader(metric_exporter)
-meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
-metrics.set_meter_provider(meter_provider)
+    # --- Metrics Setup ---
+    metric_exporter = OTLPMetricExporter(endpoint=f"{otlp_endpoint}/v1/metrics") # Corrected: Singular Metric
+    reader = PeriodicExportingMetricReader(metric_exporter)
+    meter_provider = MeterProvider(resource=resource, metric_readers=[reader])
+    metrics.set_meter_provider(meter_provider)
+
+
+tracer = trace.get_tracer(__name__)
 meter = metrics.get_meter(__name__)
 
 # Define custom metrics
@@ -83,7 +86,8 @@ pokemon_catch_failure_counter = meter.create_counter(
     description="Counts failed catches",
     unit="1"
 )
-logger.info(f"OTel Metrics initialized for service: {service_name}, exporting to {otlp_endpoint}/v1/metrics")
+if otel_enabled:
+    logger.info(f"OTel Metrics initialized for service: {service_name}")
 # --- End Metrics Setup ---
 
 
@@ -93,8 +97,9 @@ INTERVAL_SEC = int(os.getenv("INTERVAL_SEC", "10"))
 app = Flask(__name__)
 
 # --- Apply OTel Flask Instrumentation ---
-FlaskInstrumentor().instrument_app(app)
-logger.info("FlaskInstrumentor applied.")
+if otel_enabled:
+    FlaskInstrumentor().instrument_app(app)
+    logger.info("FlaskInstrumentor applied.")
 # --- End OTel Flask Instrumentation ---
 
 @app.route("/catch/<int:pkmn_id>")
@@ -116,13 +121,12 @@ def catch(pkmn_id):
         pokemon_catch_failure_counter.add(1, {"pokemon.id": str(pkmn_id)})
 
     # Log to stdout (for FireLens) using standard logger
-    logger.info(json.dumps(log)) # <-- REMOVED flush=True
+    logger.info("Pokemon catch attempted", extra={"fields": log})
     return jsonify(log)
 
 def heartbeat():
     while True:
-        # Use standard logger (no flush=True)
-        logger.info(json.dumps({"heartbeat": time.time()})) # <-- REMOVED flush=True
+        logger.info("Heartbeat", extra={"fields": {"heartbeat": time.time()}})
         time.sleep(INTERVAL_SEC)
 
 if __name__ == "__main__":

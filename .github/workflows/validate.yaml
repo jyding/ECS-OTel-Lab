@@ -1,0 +1,59 @@
+name: Validate lab
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  static:
+    runs-on: ubuntu-latest
+    env:
+      # terraform validate checks the provider schema but makes no authenticated API calls.
+      SUMOLOGIC_ACCESSID: validation-placeholder
+      SUMOLOGIC_ACCESSKEY: validation-placeholder
+      AWS_EC2_METADATA_DISABLED: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r app/requirements.txt -r app2/requirements.txt
+      - run: python -m unittest discover -s tests -v
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.16.6"
+      - run: terraform -chdir=terraform/sumologic init -backend=false -input=false
+      - run: terraform -chdir=terraform/sumologic fmt -check
+      - run: terraform -chdir=terraform/sumologic validate
+      - run: terraform -chdir=terraform/sumologic test
+      - name: Render and validate ECS API inputs (offline)
+        run: |
+          for app in pokemon-pinger pokemon-catcher; do
+            for env in sandbox prod; do
+              for mode in logs otel; do
+                extra=()
+                if [ "$mode" = otel ]; then extra+=(--with-otel); fi
+                file="build/$app-$env-$mode.json"
+                python ecs/render_task.py --app "ecs/examples/$app.json" \
+                  --environment "$env" --platform ecs/platform.example.json \
+                  --destinations ecs/destinations.example.json --output "$file" "${extra[@]}"
+                aws ecs register-task-definition --cli-input-json "file://$file" \
+                  --generate-cli-skeleton output --region us-east-1 --no-sign-request > /dev/null
+              done
+            done
+          done
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker compose --profile otel config --quiet
+      - run: docker compose --profile otel build
+      - name: Validate OTel configuration without sending telemetry
+        run: |
+          docker run --rm \
+            -e SUMO_METRICS_ENDPOINT=https://example.invalid/v1/metrics \
+            -e SUMO_TRACES_ENDPOINT=https://example.invalid/v1/traces \
+            otel-with-config:lab validate --config=/etc/otelcol-sumo/config.yaml

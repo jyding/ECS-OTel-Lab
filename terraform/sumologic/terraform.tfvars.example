@@ -1,0 +1,3 @@
+sumo_deployment = "us2"
+aws_region      = "us-east-1"
+environments    = ["sandbox", "prod"]
